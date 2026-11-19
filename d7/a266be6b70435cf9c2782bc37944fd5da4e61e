@@ -1,0 +1,28 @@
+cmd/driver/main.go
+  s_659e9add294b6f::t_bcc1699f8ec5e0 12,33-47
+  s_659e9add294b6f::t_1062cdc545697d 16
+internal/volume/fs.go
+  s_659e9add294b6f::t_1062cdc545697d 81-82,111-116
+  s_659e9add294b6f::t_bcc1699f8ec5e0 9,26,84-93,110,117-125,129,157-160,164
+internal/volume/demo.go
+  s_659e9add294b6f::t_bcc1699f8ec5e0 1-55
+README.md
+  s_659e9add294b6f::t_d63143b02b1c1f 5-8,10-16,18-31
+  s_659e9add294b6f::t_1062cdc545697d 9,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7a266be6b70435cf9c2782bc37944fd5da4e61e",
+  "prompts": {},
+  "sessions": {
+    "s_659e9add294b6f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f341-15b3-7f12-9daf-66ba3c5683f8",
+        "model": "gpt-6.2-astra"
+      },
+      "human_author": "stlyx <3462584+stlyx@users.noreply.github.com>"
+    }
+  }
+}
