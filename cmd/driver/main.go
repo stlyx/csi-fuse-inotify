@@ -9,9 +9,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"csi-fuse-inotify/internal/backend"
 	"csi-fuse-inotify/internal/driver"
+	"csi-fuse-inotify/internal/volume"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
@@ -28,6 +30,21 @@ func protectMemory() error {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "demo" {
+		flags := flag.NewFlagSet("demo", flag.ExitOnError)
+		target := flags.String("mount", "", "existing empty mount directory")
+		interval := flags.Duration("interval", 2*time.Second, "time between synthetic revisions")
+		flags.Parse(os.Args[2:])
+		if *target == "" || *interval <= 0 || flags.NArg() != 0 {
+			log.Fatal("usage: driver demo -mount DIR [-interval 2s]")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		if err := volume.RunDemo(ctx, *target, *interval); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	socket := flag.String("socket", "/csi/csi.sock", "CSI Unix socket path")
 	node := flag.String("node-id", os.Getenv("NODE_ID"), "Kubernetes node name")
 	endpoint := flag.String("backend", os.Getenv("BACKEND_URL"), "HTTPS base URL")

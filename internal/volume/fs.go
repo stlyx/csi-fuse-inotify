@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -22,6 +23,7 @@ type snapshot struct {
 
 type valueFile struct {
 	fs.Inode
+	demo    bool // The notifier and readers share a mount in the local demo.
 	current atomic.Pointer[snapshot]
 	pending atomic.Pointer[snapshot]
 }
@@ -76,9 +78,19 @@ func (f *valueFile) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint
 	if flags&syscall.O_ACCMODE == syscall.O_RDONLY {
 		return &reader{f.current.Load()}, fuse.FOPEN_DIRECT_IO, 0
 	}
-	// Only the driver can reach the private writable mount. Its clone is
-	// already read-only when attached to the kubelet's target.
+	// CSI publishes a read-only clone. The local demo uses one mount and
+	// restricts the notifier handle to the serving process itself.
 	if flags&syscall.O_ACCMODE == syscall.O_WRONLY {
+		if f.demo {
+			caller, ok := fuse.FromContext(ctx)
+			if !ok {
+				return nil, 0, syscall.EROFS
+			}
+			// Linux FUSE may identify the calling thread by TID.
+			if _, err := os.Stat("/proc/self/task/" + strconv.FormatUint(uint64(caller.Pid), 10)); err != nil {
+				return nil, 0, syscall.EROFS
+			}
+		}
 		return &notifier{f}, fuse.FOPEN_DIRECT_IO, 0
 	}
 	return nil, 0, syscall.EROFS
@@ -95,23 +107,28 @@ func New(workDir, source string, data []byte) (*Mount, error) {
 	if err != nil {
 		return nil, err
 	}
-	file := &valueFile{}
-	file.current.Store(&snapshot{data, time.Now()})
-	zero := time.Duration(0)
-	server, err := fs.Mount(dir, &root{file: file}, &fs.Options{
-		AttrTimeout:  &zero,
-		EntryTimeout: &zero,
-		MountOptions: fuse.MountOptions{
-			Name:              "ramvalue",
-			FsName:            source,
-			AllowOther:        true,
-			DirectMountStrict: true,
-			Options:           []string{"default_permissions"},
-			DisableXAttrs:     true,
-		},
+	m, err := mountAt(dir, data, false, fuse.MountOptions{
+		Name:              "ramvalue",
+		FsName:            source,
+		AllowOther:        true,
+		DirectMountStrict: true,
+		Options:           []string{"default_permissions"},
+		DisableXAttrs:     true,
 	})
 	if err != nil {
 		os.Remove(dir)
+	}
+	return m, err
+}
+
+func mountAt(dir string, data []byte, demo bool, options fuse.MountOptions) (*Mount, error) {
+	file := &valueFile{demo: demo}
+	file.current.Store(&snapshot{data, time.Now()})
+	zero := time.Duration(0)
+	server, err := fs.Mount(dir, &root{file: file}, &fs.Options{
+		AttrTimeout: &zero, EntryTimeout: &zero, MountOptions: options,
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &Mount{dir, server, file}, nil
@@ -137,10 +154,14 @@ func (m *Mount) Update(data []byte) error {
 	if err != nil {
 		return err
 	}
+	return errors.Join(m.writeSnapshot(fd, data), fd.Close())
+}
+
+func (m *Mount) writeSnapshot(fd *os.File, data []byte) error {
 	m.file.pending.Store(&snapshot{data, time.Now()})
 	_, writeErr := fd.WriteAt([]byte{0}, 0)
 	m.file.pending.Store(nil)
-	return errors.Join(writeErr, fd.Close())
+	return writeErr
 }
 
 func (m *Mount) Close() error {

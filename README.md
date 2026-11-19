@@ -2,6 +2,33 @@
 
 Linux Kubernetes CSI 节点驱动，使用 go-fuse v2。每个静态只读 PV 的 `volumeHandle` 选择一个后端对象。将 PVC 挂到 `/data` 后，应用通过 `/data/value` 读取对象，通过标准 inotify 监听更新。每个挂载目标独立订阅，单个对象上限为 4 MiB，支持空内容和二进制内容。
 
+## 无 Kubernetes 的本机演示
+
+同一个驱动二进制提供 `demo` 子命令，使用 go-fuse 和系统的 `fusermount3`（或 `fusermount`）挂载普通用户拥有的空目录。需要 Linux、可访问的 `/dev/fuse` 和 Go 1.26.2 或更新版本。下例的监听命令来自 `inotify-tools`。
+
+在第一个终端进入仓库根目录，构建并启动演示。
+
+```sh
+go build -o /tmp/ramvalue-driver ./cmd/driver
+mkdir -p "$HOME/ramvalue-demo"
+/tmp/ramvalue-driver demo -mount "$HOME/ramvalue-demo" -interval 2s
+```
+
+在第二个终端以同一用户监听文件，每次收到事件后重新打开文件读取最新值。
+
+```sh
+file="$HOME/ramvalue-demo/value"
+inotifywait -m -q -e modify --format '%e' "$file" |
+  while read -r event; do
+    printf '%s ' "$event"
+    cat "$file"
+  done
+```
+
+可以看到 `MODIFY revision 1`、`MODIFY revision 2` 等输出，起始序号取决于开始监听的时间。先用 Ctrl+C 停止监听，再在第一个终端按 Ctrl+C，驱动会卸载并保留原目录。
+
+演示模式从 `revision 0` 开始，默认每 2 秒生成一个合成快照，复用 CSI 的 FUSE 写回调和内核通知路径。演示无需后端，也不申请生产驱动的进程锁页权限。实际 CSI 模式只在后端返回新 ETag 和完整内容后更新文件，`304` 心跳只会触发下一次订阅。
+
 ## 后端接口
 
 在 DaemonSet 中配置 `BACKEND_URL`，例如 `https://backend.example.com/api`。驱动校验服务端 TLS 证书。私有 CA 可挂到驱动容器，并通过 `SSL_CERT_FILE` 指定 PEM 文件。当前客户端使用服务端 TLS 认证，后端访问权限由部署环境提供。已有其他协议的后端可实现 [Source 接口](internal/driver/node.go)。
