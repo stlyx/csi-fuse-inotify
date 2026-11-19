@@ -1,0 +1,87 @@
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: ramvalue.csi.local
+spec:
+  attachRequired: false
+  podInfoOnMount: false
+  fsGroupPolicy: None
+  volumeLifecycleModes: [Persistent]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ramvalue-csi
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: ramvalue-csi
+  template:
+    metadata:
+      labels:
+        app: ramvalue-csi
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: driver
+          image: ramvalue-csi:0.1.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+            readOnlyRootFilesystem: true
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: BACKEND_URL
+              value: https://backend.example.com
+          volumeMounts:
+            - name: socket
+              mountPath: /csi
+            - name: pods
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
+            - name: work
+              mountPath: /run/ramvalue
+            - name: fuse
+              mountPath: /dev/fuse
+        - name: registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.13.0
+          args:
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/ramvalue.csi.local/csi.sock
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: socket
+              mountPath: /csi
+            - name: registration
+              mountPath: /registration
+      volumes:
+        - name: socket
+          hostPath:
+            path: /var/lib/kubelet/plugins/ramvalue.csi.local
+            type: DirectoryOrCreate
+        - name: registration
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        - name: pods
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: work
+          emptyDir:
+            medium: Memory
+        - name: fuse
+          hostPath:
+            path: /dev/fuse
+            type: CharDevice

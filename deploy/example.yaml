@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ramvalue-example
+spec:
+  capacity: {storage: 4Mi}
+  accessModes: [ReadOnlyMany]
+  volumeMode: Filesystem
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: default
+    name: ramvalue-example
+  csi:
+    driver: ramvalue.csi.local
+    volumeHandle: example
+    readOnly: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ramvalue-example
+  namespace: default
+spec:
+  volumeName: ramvalue-example
+  storageClassName: ""
+  accessModes: [ReadOnlyMany]
+  resources:
+    requests: {storage: 4Mi}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ramvalue-reader
+  namespace: default
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: reader
+      image: busybox:1.37
+      # inotifyd 'c' is IN_MODIFY. Its built-in stdout handler only prints
+      # event metadata, leaving the file contents out of container logs.
+      command: ["inotifyd", "-", "/data/value:c"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - name: data
+          mountPath: /data
+          readOnly: true
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: ramvalue-example
+        readOnly: true
