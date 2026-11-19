@@ -1,0 +1,39 @@
+Dockerfile
+  s_d247b4ca8bdd56::t_b6ac7eab8a2e67 1-12
+cmd/driver/main.go
+  s_d247b4ca8bdd56::t_89805c6591d1c8 1-81
+deploy/driver.yaml
+  s_d247b4ca8bdd56::t_508e3c769bc0d9 1-87
+deploy/example.yaml
+  s_d247b4ca8bdd56::t_8d35e838a0ffae 1-58
+go.mod
+  s_d247b4ca8bdd56::t_5491843e0a73d7 1-18
+go.sum
+  s_d247b4ca8bdd56::t_ac04a54a6b7f4a 1-46
+internal/backend/client.go
+  s_d247b4ca8bdd56::t_728ac63e7e79cb 1-89
+internal/backend/client_test.go
+  s_d247b4ca8bdd56::t_318d47545ceb89 1-105
+internal/driver/node.go
+  s_d247b4ca8bdd56::t_44ffd653c64cdd 1-244
+internal/driver/node_linux_test.go
+  s_d247b4ca8bdd56::t_a3c168cf08e922 1-138
+internal/volume/fs.go
+  s_d247b4ca8bdd56::t_2ff5b083d154f2 1-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a88e786c0fd6fea041a48c99c3f3b028be5b4fc",
+  "prompts": {},
+  "sessions": {
+    "s_d247b4ca8bdd56": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f32d-0dce-7e33-89f7-e22fcfffec5c",
+        "model": "gpt-6.2-astra"
+      },
+      "human_author": "stlyx <3462584+stlyx@users.noreply.github.com>"
+    }
+  }
+}
